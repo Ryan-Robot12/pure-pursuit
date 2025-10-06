@@ -5,9 +5,9 @@ class PIDController:
     def __init__(self, p: float, i: float, d: float):
         """
         Creates a PID controller with the given P/I/D values
-        :param p:
-        :param i:
-        :param d:
+        :param p: P value
+        :param i: I value
+        :param d: D value
         """
         self.p = p
         self.i = i
@@ -27,6 +27,7 @@ class PIDController:
         self.set_goal(goal)
         error = goal - current
         dt = time.time() - self._last_time
+        # TODO: remove (simulations fast go brrrrrr)
         if dt == 0:
             dt = 0.000001
         # TODO: this can grow infinitely if we never reach the setpoint, clamp

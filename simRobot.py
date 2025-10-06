@@ -67,10 +67,6 @@ def haversine_dist(lat1, lon1, lat2, lon2):
     return c * r * 1000
 
 
-def clamp(val, min_, max_):
-    return max(min(val, max_), min_)
-
-
 class SimRobot:
     def __init__(self, pos: list):
         # sim stuff
@@ -105,6 +101,7 @@ class SimRobot:
 
         # PID calcs
         # TODO: clamp to forward, heading err < 90 deg to drive forwards/backwards
+        # TODO: clamp to max robot speed lmao
         drive_output = self.drive_controller.calculate(dist, 0)
         turn_output = self.turn_controller.calculate(self.current_heading, desired_heading)
         # print(f"drive err: {dist}, current heading: {self.current_heading}, turn err: {desired_heading - self.current_heading}")
@@ -156,7 +153,7 @@ class SimRobot:
         target_loc = get_node_loc(node_id)
         return haversine_dist(self.current_pos[0], self.current_pos[1], target_loc[0], target_loc[1])
 
-    def drive_path(self, points: list, acceptable_err: float=0.05):
+    def drive_path(self, points: list, acceptable_err: float=0.25):
         """
         Drives along a given list of nodes
         :param points: list of node IDs
@@ -177,14 +174,6 @@ class SimRobot:
 def main():
     robot = SimRobot(get_node_loc(path_points[0]))
     robot.drive_path(path_points[1:])
-    # counter = 0
-    # t1 = time.time()
-    # while robot._distance_to_node(1) > 0.05:
-    #     counter += 1
-    #     robot.drive_to_node(1)
-    #     time.sleep(0.001)
-    #     # print(f"Distance: {robot._distance_to_node(1)}")
-    # print(f"Drove to node 1 in {counter} iterations over {round(time.time() - t1, 2)} seconds")
 
 
 if __name__ == "__main__":
