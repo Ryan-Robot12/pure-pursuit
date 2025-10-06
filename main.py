@@ -43,7 +43,7 @@ class Robot:
         dist = haversine_dist(self.pos[0], self.pos[1], target_loc[0], target_loc[1])
         # TODO: optimize by passing in pos so node does not need to be located twice
         heading = calculate_heading(self.pos, node)
-        heading = (math.pi / 2 - heading) % (2 * math.pi)
+        heading = (math.pi / 2 - heading) % (2 * math.pi)  # change to east being 0, CCW positive for math
         dt = time.time() - self._last
         # TODO: account for rotation time to desired heading
         dx = dist * math.cos(heading)  # east/west
@@ -133,14 +133,5 @@ def haversine_dist(lat1, lon1, lat2, lon2):
 robot = Robot()
 robot.pos = get_node_loc(0)
 goal_loc = get_node_loc(1)
-# print(robot.distance_to_node(1))
-# time.sleep(1)
-# robot.move_towards(1, 1)
-# print(robot.distance_to_node(1))
-while robot.distance_to_node(1) > 0.1:
-    robot.move_towards(1, 0.5)
-    print(robot.pos, robot.distance_to_node(1))
-    # print(robot.pos)
-    time.sleep(0.1)
 
-robot.save_log("out.json")
+
