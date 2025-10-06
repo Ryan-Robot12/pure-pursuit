@@ -1,5 +1,6 @@
 import json
 import math
+import time
 
 with open("oval_points.json") as file:
     all_points = json.load(file)
@@ -11,6 +12,23 @@ end_point = path_points[-1]
 first_point = path_points[0]
 current_node = 0
 
+
+class Robot:
+    def __init__(self):
+        self.pos = [0, 0]
+        self._last = time.time()
+
+    def move(self, speed: float, heading: float):
+        """
+        Simulates robot motion, accounting for time since last call
+        :param speed: speed in m/s
+        :param heading: heading, in degrees
+        """
+        heading /= 180
+        heading *= math.pi
+        self.pos[0] += ((time.time() - self._last) * speed) * math.cos(heading)
+        self.pos[1] += ((time.time() - self._last) * speed) * math.sin(heading)
+        self._last = time.time()
 
 def get_node_loc(node_id: int):
     matches = []
@@ -40,5 +58,8 @@ def calculate_heading(start_loc, node):
     return beta_deg
 
 
-start_pos = get_node_loc(-1)
-print(calculate_heading(start_pos, -5))
+robot = Robot()
+time.sleep(1)
+robot.pos = [0, 0]
+robot.move(100, 180)
+print(robot.pos)
