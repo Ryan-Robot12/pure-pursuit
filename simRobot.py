@@ -35,10 +35,10 @@ def calculate_heading(start_loc, target):
     :param target: target position in [lat, lon]
     :return: heading needed in radians, clockwise from north
     """
-    lat1 = start_loc[0] * 2 * math.pi / 360
-    lon1 = start_loc[1] * 2 * math.pi / 360
-    lat2 = target[0] * 2 * math.pi / 360
-    lon2 = target[1] * 2 * math.pi / 360
+    lat1 = start_loc[0] * math.pi / 180
+    lon1 = start_loc[1] * math.pi / 180
+    lat2 = target[0] * math.pi / 180
+    lon2 = target[1] * math.pi / 180
     delta_lon = lon2 - lon1
     x_c = math.sin(delta_lon) * math.cos(lat2)
     y_c = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(delta_lon)
@@ -59,8 +59,8 @@ def haversine_dist(lat1, lon1, lat2, lon2):
     dlon = lon2 - lon1
     dlat = lat2 - lat1
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
-    # TODO: find why a=-1.1102230246251565e-16 sometimes
-    if abs(a) < 1e-15:
+    # sometimes a is a very small number (e.g. 1e-17) and it flips to -1e-17
+    if a < 0:
         a = 0
     c = 2 * math.asin(math.sqrt(a))
     r = 6371
@@ -73,11 +73,13 @@ def clamp(val, min_, max_):
 
 class SimRobot:
     def __init__(self, pos: list):
+        # sim stuff
         self.current_pos = pos
         self.current_heading = 0  # CW from North
 
+        # PID stuff
+        # negative P because current=distance, goal=0, goal-current < 0
         self.drive_p = -0.1
-        # self.drive_p = 0
         self.drive_i = 0
         self.drive_d = 0
         self.drive_controller = PIDController(self.drive_p, self.drive_i, self.drive_d)
@@ -87,26 +89,34 @@ class SimRobot:
         self.turn_d = 0
         self.turn_controller = PIDController(self.turn_p, self.turn_i, self.turn_d)
 
+        # dt tracking
         self._last_time = time.time()
 
     def drive_to_node(self, node_id: int):
+        # where we going
         target_loc = get_node_loc(node_id)
-        dist = haversine_dist(self.current_pos[0], self.current_pos[1], target_loc[0], target_loc[1])
+        # distance there
+        dist = self._distance_to_node(node_id)
 
+        # desired heading
         desired_heading = calculate_heading(self.current_pos, target_loc)
-        desired_heading = (math.pi / 2 - desired_heading) % (2 * math.pi)  # change to east being 0, CCW positive for math
+        # change to east being 0, CCW positive for math, and clamp down to -2pi, 2pi
+        desired_heading = (math.pi / 2 - desired_heading) % (2 * math.pi)
 
+        # PID calcs
+        # TODO: clamp to forward, heading err < 90 deg to drive forwards/backwards
         drive_output = self.drive_controller.calculate(dist, 0)
         turn_output = self.turn_controller.calculate(self.current_heading, desired_heading)
         # print(f"drive err: {dist}, current heading: {self.current_heading}, turn err: {desired_heading - self.current_heading}")
 
-        # TODO: drive(drive_out, turn_out)
         # print(f"Forward power: {drive_output}, turn power: {turn_output}")
+        # simulate movement
         self.simulate_movement(drive_output, turn_output)
 
     def simulate_movement(self, forward_power, turn_power):
         # ---------------------------
         # handling forward/backward:
+        # TODO: dt?
         dx = forward_power * math.cos(self.current_heading)  # east/west
         dy = forward_power * math.sin(self.current_heading)
         # print(f"dist: {dist}, dt: {dt}, heading: {heading}, dx: {dx}, dy: {dy}")
@@ -122,11 +132,14 @@ class SimRobot:
         dlat = dy / earth_radius_m
         dlon = dx / (earth_radius_m * math.cos(lat_rad))
 
+        # update current pos
         self.current_pos[0] = math.degrees(lat_rad + dlat)
         self.current_pos[1] = math.degrees(lon_rad + dlon)
         # ---------------------------------------
         # handling turn:
+        # handle dt * speed
         dt = time.time() - self._last_time
+        # TODO: when simulating, loops were so fast dt was 0 and nothing was happening
         if dt == 0:
             dt = 0.001
         self.current_heading += turn_power * dt
@@ -134,19 +147,31 @@ class SimRobot:
         self._last_time = time.time()
         # ---------------------------------------
 
-
     def _distance_to_node(self, node_id):
+        """
+        Gets the distance to a given node
+        :param node_id: ID of a node
+        :return: distance in meters
+        """
         target_loc = get_node_loc(node_id)
         return haversine_dist(self.current_pos[0], self.current_pos[1], target_loc[0], target_loc[1])
 
     def drive_path(self, points: list, acceptable_err: float=0.05):
+        """
+        Drives along a given list of nodes
+        :param points: list of node IDs
+        :param acceptable_err: acceptabale error in meters
+        """
         num_pts = len(points)
         for i, point in enumerate(points):
             print(f"Heading towards node {point}, point {i + 1}/{num_pts}")
             print(f"Target: {get_node_loc(point)}, distance: {self._distance_to_node(point)}")
+            steps = 0
             while self._distance_to_node(point) > acceptable_err:
                 self.drive_to_node(point)
-            print(f"Made it to node {point}")
+                steps += 1
+                # print(self._distance_to_node(point))
+            print(f"Made it to node {point} in {steps} steps")
 
 
 def main():
