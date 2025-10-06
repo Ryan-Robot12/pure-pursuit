@@ -2,6 +2,8 @@ import json
 import math
 import time
 
+earth_radius_m = 6378137
+
 with open("oval_points.json") as file:
     all_points = json.load(file)
 
@@ -17,6 +19,7 @@ class Robot:
     def __init__(self):
         self.pos = [0, 0]
         self._last = time.time()
+        self._log = []
 
     # def move(self, speed: float, heading: float):
     #     """
@@ -40,15 +43,39 @@ class Robot:
         dist = haversine_dist(self.pos[0], self.pos[1], target_loc[0], target_loc[1])
         # TODO: optimize by passing in pos so node does not need to be located twice
         heading = calculate_heading(self.pos, node)
+        heading = (math.pi / 2 - heading) % (2 * math.pi)
         dt = time.time() - self._last
         # TODO: account for rotation time to desired heading
         dx = dist * math.cos(heading)  # east/west
         dy = dist * math.sin(heading)
+        # TODO: check
+        dx *= dt * speed
+        dy *= dt * speed
+        # print(f"dist: {dist}, dt: {dt}, heading: {heading}, dx: {dx}, dy: {dy}")
+        self._log.append({"dist": dist, "heading": heading, "dx": dx, "dy": dy, "pos": self.pos, "target": target_loc})
+        # dx, dy are in meters
+        # need to transform back to latlon
 
+        # Convert latitude and longitude from degrees to radians
+        lat_rad = math.radians(self.pos[0])
+        lon_rad = math.radians(self.pos[1])
+
+        # Offset in radians
+        dlat = dy / earth_radius_m
+        dlon = dx / (earth_radius_m * math.cos(lat_rad))
+
+        self.pos[0] = math.degrees(lat_rad + dlat)
+        self.pos[1] = math.degrees(lon_rad + dlon)
+
+        self._last = time.time()
 
     def distance_to_node(self, node_id: int):
         node_loc = get_node_loc(node_id)
         return haversine_dist(self.pos[0], self.pos[1], node_loc[0], node_loc[1])
+
+    def save_log(self, filename: str):
+        with open(filename, "w") as file:
+            json.dump(self._log, file, indent=2)
 
 
 def get_node_loc(node_id: int):
@@ -71,7 +98,7 @@ def calculate_heading(start_loc, node):
     Calculates the heading to a given position
     :param start_loc: current pos
     :param node: desired node
-    :return: heading needed in radians
+    :return: heading needed in radians, clockwise from north
     """
     lat2, lon2 = get_node_loc(node)
     lat1 = start_loc[0] * 2 * math.pi / 360
@@ -106,12 +133,14 @@ def haversine_dist(lat1, lon1, lat2, lon2):
 robot = Robot()
 robot.pos = get_node_loc(0)
 goal_loc = get_node_loc(1)
-print(haversine_dist(robot.pos[0], robot.pos[1], goal_loc[0], goal_loc[1]))
-time.sleep(0.1)
-robot.move(0.1, calculate_heading(robot.pos, 1))
-print(haversine_dist(robot.pos[0], robot.pos[1], goal_loc[0], goal_loc[1]))
-# while haversine_dist(robot.pos[0], robot.pos[1], goal_loc[0], goal_loc[1]) > 0.1:
-#     robot.move(0.1, calculate_heading(robot.pos, 1))
-#     print(robot.pos, haversine_dist(robot.pos[0], robot.pos[1], goal_loc[0], goal_loc[1]))
-#     # print(robot.pos)
-#     time.sleep(0.1)
+# print(robot.distance_to_node(1))
+# time.sleep(1)
+# robot.move_towards(1, 1)
+# print(robot.distance_to_node(1))
+while robot.distance_to_node(1) > 0.1:
+    robot.move_towards(1, 0.5)
+    print(robot.pos, robot.distance_to_node(1))
+    # print(robot.pos)
+    time.sleep(0.1)
+
+robot.save_log("out.json")
