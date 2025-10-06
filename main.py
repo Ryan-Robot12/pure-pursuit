@@ -18,17 +18,33 @@ class Robot:
         self.pos = [0, 0]
         self._last = time.time()
 
-    def move(self, speed: float, heading: float):
+    # def move(self, speed: float, heading: float):
+    #     """
+    #     Simulates robot motion, accounting for time since last call
+    #     :param speed: speed in m/s
+    #     :param heading: heading, in degrees
+    #     """
+    #     heading /= 180
+    #     heading *= math.pi
+    #     self.pos[0] += ((time.time() - self._last) * speed) * math.cos(heading)
+    #     self.pos[1] += ((time.time() - self._last) * speed) * math.sin(heading)
+    #     self._last = time.time()
+
+    def move_towards(self, node: int, speed: float):
         """
         Simulates robot motion, accounting for time since last call
-        :param speed: speed in m/s
-        :param heading: heading, in degrees
+        :param node: node ID
+        :param speed: speed (m/s) to move
         """
-        heading /= 180
-        heading *= math.pi
-        self.pos[0] += ((time.time() - self._last) * speed) * math.cos(heading)
-        self.pos[1] += ((time.time() - self._last) * speed) * math.sin(heading)
-        self._last = time.time()
+        target_loc = get_node_loc(node)
+        dist = haversine_dist(self.pos[0], self.pos[1], target_loc[0], target_loc[1])
+        # TODO: optimize by passing in pos so node does not need to be located twice
+        heading = calculate_heading(self.pos, node)
+        dt = time.time() - self._last
+        # TODO: account for rotation time to desired heading
+        dx = dist * math.cos(heading)  # east/west
+        dy = dist * math.sin(heading)
+
 
     def distance_to_node(self, node_id: int):
         node_loc = get_node_loc(node_id)
@@ -51,6 +67,12 @@ def get_node_loc(node_id: int):
 
 
 def calculate_heading(start_loc, node):
+    """
+    Calculates the heading to a given position
+    :param start_loc: current pos
+    :param node: desired node
+    :return: heading needed in radians
+    """
     lat2, lon2 = get_node_loc(node)
     lat1 = start_loc[0] * 2 * math.pi / 360
     lon1 = start_loc[1] * 2 * math.pi / 360
@@ -60,8 +82,8 @@ def calculate_heading(start_loc, node):
     x_c = math.sin(delta_lon) * math.cos(lat2)
     y_c = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(delta_lon)
     beta = math.atan2(x_c, y_c)
-    beta_deg = beta * 360 / 2 / math.pi
-    return beta_deg
+    # beta_deg = beta * 360 / 2 / math.pi
+    return beta
 
 
 def haversine_dist(lat1, lon1, lat2, lon2):
