@@ -59,6 +59,9 @@ def haversine_dist(lat1, lon1, lat2, lon2):
     dlon = lon2 - lon1
     dlat = lat2 - lat1
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    # TODO: find why a=-1.1102230246251565e-16 sometimes
+    if abs(a) < 1e-15:
+        a = 0
     c = 2 * math.asin(math.sqrt(a))
     r = 6371
     return c * r * 1000
@@ -148,7 +151,7 @@ class SimRobot:
 
 def main():
     robot = SimRobot(get_node_loc(path_points[0]))
-    robot.drive_path(path_points[1:5])
+    robot.drive_path(path_points[1:])
     # counter = 0
     # t1 = time.time()
     # while robot._distance_to_node(1) > 0.05:
