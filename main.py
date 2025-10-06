@@ -30,6 +30,11 @@ class Robot:
         self.pos[1] += ((time.time() - self._last) * speed) * math.sin(heading)
         self._last = time.time()
 
+    def distance_to_node(self, node_id: int):
+        node_loc = get_node_loc(node_id)
+        return haversine_dist(self.pos[0], self.pos[1], node_loc[0], node_loc[1])
+
+
 def get_node_loc(node_id: int):
     matches = []
     if node_id < 0:
@@ -40,7 +45,8 @@ def get_node_loc(node_id: int):
         for node in all_points["points"]:
             if node["id"] == node_id:
                 matches.append(node["latlon"])
-    print(matches)
+    if len(matches) == 0:
+        raise ValueError("No matching nodes were found.")
     return matches[0]
 
 
@@ -58,8 +64,32 @@ def calculate_heading(start_loc, node):
     return beta_deg
 
 
+def haversine_dist(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great circle distance in meters between two points
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians
+    lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+
+    # haversine formula
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    r = 6371
+    return c * r * 1000
+
+
 robot = Robot()
-time.sleep(1)
-robot.pos = [0, 0]
-robot.move(100, 180)
-print(robot.pos)
+robot.pos = get_node_loc(0)
+goal_loc = get_node_loc(1)
+print(haversine_dist(robot.pos[0], robot.pos[1], goal_loc[0], goal_loc[1]))
+time.sleep(0.1)
+robot.move(0.1, calculate_heading(robot.pos, 1))
+print(haversine_dist(robot.pos[0], robot.pos[1], goal_loc[0], goal_loc[1]))
+# while haversine_dist(robot.pos[0], robot.pos[1], goal_loc[0], goal_loc[1]) > 0.1:
+#     robot.move(0.1, calculate_heading(robot.pos, 1))
+#     print(robot.pos, haversine_dist(robot.pos[0], robot.pos[1], goal_loc[0], goal_loc[1]))
+#     # print(robot.pos)
+#     time.sleep(0.1)
