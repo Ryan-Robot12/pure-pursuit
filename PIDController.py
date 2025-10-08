@@ -1,8 +1,24 @@
 import time
 
 
+__all__ = ["PIDController"]
+
+
+def input_modulus(input_, minimumInput, maximumInput):
+    modulus = maximumInput - minimumInput
+
+    num_max = (input_ - minimumInput) // modulus
+    input_ -= num_max * modulus
+
+    num_min = (input_ - maximumInput) // modulus
+    input_ -= num_min * modulus
+
+    return input_ % maximumInput
+
+
 class PIDController:
     def __init__(self, p: float, i: float, d: float):
+        # TODO: enable continuous input
         """
         Creates a PID controller with the given P/I/D values
         :param p: P value
@@ -16,6 +32,16 @@ class PIDController:
         self._prev_err = 0
         self._accumulated_err = 0
         self._last_time = time.time()
+        self._continuous_input = False
+        self._max = None
+        self._min = None
+
+    def enable_continuous_input(self, low: float, high: float):
+        self._continuous_input = True
+        if low >= high:
+            raise ValueError("Low must be < high value")
+        self._max = high
+        self._min = low
 
     def calculate(self, current, goal):
         """
@@ -25,7 +51,14 @@ class PIDController:
         :return: PID output
         """
         self.set_goal(goal)
-        error = goal - current
+        if self._continuous_input:
+            # what the maximum error can be
+            max_err = self._max - self._min
+            max_err /= 2
+            # use fancy bs (copied from WPILib) to find the closest err
+            error = input_modulus(goal - current, -max_err, max_err)
+        else:
+            error = goal - current
         dt = time.time() - self._last_time
         # TODO: remove (simulations fast go brrrrrr)
         if dt == 0:

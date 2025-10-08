@@ -44,6 +44,18 @@ def get_node_loc(node_id: int):
     return matches[0]
 
 
+def input_modulus(input_, minimumInput, maximumInput):
+    modulus = maximumInput - minimumInput
+
+    num_max = (input_ - minimumInput) // modulus
+    input_ -= num_max * modulus
+
+    num_min = (input_ - maximumInput) // modulus
+    input_ -= num_min * modulus
+
+    return input_ % maximumInput
+
+
 def calculate_heading(start_loc, target):
     """
     Calculates the heading to a given position
@@ -101,6 +113,8 @@ class SimRobot:
         self.turn_i = 0
         self.turn_d = 0
         self.turn_controller = PIDController(self.turn_p, self.turn_i, self.turn_d)
+        self.turn_controller.enable_continuous_input(0, 2 * math.pi)
+        self._max_turn_err = math.pi  # 2pi / 2
 
         # dt tracking
         self._last_time = time.time()
@@ -130,13 +144,16 @@ class SimRobot:
         if desired_heading < 0:
             desired_heading += 2 * math.pi
 
-        heading_err = abs(desired_heading - self.current_heading)
+        # heading_err = abs(desired_heading - self.current_heading)
+        # TODO: should be 0 or 2pi but is sometimes pi (heading wrong direction)
+        heading_err = input_modulus(desired_heading - self.current_heading, -self._max_turn_err, self._max_turn_err)
         # PID calcs
         drive_output = self.drive_controller.calculate(dist, 0) if heading_err < ACCEPTABLE_TURN_ERR_TO_DRIVE else 0
+        # print(round(heading_err, 2), round(drive_output, 2), round(self.current_heading, 2))
         turn_output = self.turn_controller.calculate(self.current_heading, desired_heading)
         # deadzone
-        drive_output = deadzone(drive_output)
-        turn_output = deadzone(turn_output)
+        # drive_output = deadzone(drive_output)
+        # turn_output = deadzone(turn_output)
         # clamp to robot constraints
         drive_output = clamp(drive_output, 0, MAX_DRIVE_SPEED_M_S)
         turn_output = clamp(turn_output, -1 * MAX_TURN_SPEED_RADS_SEC, MAX_TURN_SPEED_RADS_SEC)
@@ -228,9 +245,9 @@ class SimRobot:
 
 
 def main():
-    robot = SimRobot(get_node_loc(path_points[31]))
+    robot = SimRobot(get_node_loc(path_points[4]))
     try:
-        robot.drive_path(path_points[32:])
+        robot.drive_path(path_points[5:])
     except KeyboardInterrupt:
         pass
     robot.save_log("data.json")
