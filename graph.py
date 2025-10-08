@@ -17,7 +17,6 @@ with open("data.json") as file:
 "turn_out": turn_output,
 "dt": time.time() - self._last_time
 """
-x = [i for i in range(1, len(data["drive_err"]) + 1)]
 blank_data = {
     "current_pos": [],
     "target_pos": [],
@@ -32,19 +31,23 @@ blank_data = {
 split_by_nodes = [deepcopy(blank_data)]
 last_tgt_loc = data["target_pos"][0]
 keys = list(blank_data.keys())
-for i in range(len(data)):
-    if data["target_pos"][i][0] != last_tgt_loc[0]:
+for i in range(len(data["current_pos"])):
+    if data["target_pos"][i] != last_tgt_loc:
         split_by_nodes.append(deepcopy(blank_data))
     for key in keys:
         split_by_nodes[-1][key].append(data[key][i])
     last_tgt_loc = data["target_pos"][i]
 
 
-print(split_by_nodes[0])
-# plt.scatter(x, data["current_heading"], c="red")
-# plt.scatter(x, data["desired_heading"], c="orange")
-plt.scatter(x, split_by_nodes[0]["drive_err"][:], c="red", s=1)
-plt.scatter(x, split_by_nodes[0]["drive_out"][:], c="orange", s=1)
-plt.scatter(x, split_by_nodes[0]["turn_err"], c="green", s=1)
-plt.scatter(x, split_by_nodes[0]["turn_out"], c="blue", s=1)
-plt.savefig("graph.png")
+size = 8
+
+for node in range(len(split_by_nodes)):
+    x = [i for i in range(len(split_by_nodes[node]["drive_err"]))]
+    # plt.scatter(x, data["current_heading"], c="red")
+    # plt.scatter(x, data["desired_heading"], c="orange")
+    plt.scatter(x, split_by_nodes[node]["drive_err"][:], c="red", s=size)
+    plt.scatter(x, split_by_nodes[node]["drive_out"][:], c="orange", s=size)
+    plt.scatter(x, split_by_nodes[node]["turn_err"], c="green", s=size)
+    plt.scatter(x, split_by_nodes[node]["turn_out"], c="blue", s=size)
+    plt.savefig(f"graphs/node_{node + 1}.png")
+    plt.clf()

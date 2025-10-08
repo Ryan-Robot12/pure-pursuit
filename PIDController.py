@@ -55,8 +55,6 @@ class PIDController:
         if self._continuous_input:
             # what the maximum error can be
             max_err = self._max - self._min
-            # TODO: uncommented this line is correct i think but idk
-            # because if its between the two values, it can only be (max-min)/2 away
             max_err /= 2
             # use fancy bs (copied from WPILib) to find the closest err
             error = input_modulus(goal - current, -max_err, max_err)
