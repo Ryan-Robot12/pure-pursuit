@@ -18,6 +18,10 @@ with open("data.json") as file:
 """
 x = [i for i in range(1, len(data["drive_err"]) + 1)]
 
-plt.scatter(x, data["drive_err"])
-plt.scatter(x, data["turn_err"])
+# plt.scatter(x, data["current_heading"], c="red")
+# plt.scatter(x, data["desired_heading"], c="orange")
+plt.scatter(x, data["drive_err"][:], c="red")
+plt.scatter(x, data["drive_out"][:], c="orange")
+plt.scatter(x, data["turn_err"], c="green")
+plt.scatter(x, data["turn_out"], c="blue")
 plt.savefig("graph.png")
