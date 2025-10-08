@@ -160,6 +160,7 @@ class SimRobot:
         # debugging
         # print(f"drive err: {dist}, turn err: {desired_heading - self.current_heading}")
         self._log["current_pos"].append(self.current_pos)
+        self._log["target_pos"].append(target_loc)
         self._log["drive_err"].append(dist)
         self._log["turn_err"].append(desired_heading - self.current_heading)
         self._log["desired_heading"].append(desired_heading)
@@ -245,9 +246,9 @@ class SimRobot:
 
 
 def main():
-    robot = SimRobot(get_node_loc(path_points[4]))
+    robot = SimRobot(get_node_loc(path_points[0]))
     try:
-        robot.drive_path(path_points[5:])
+        robot.drive_path(path_points[1:])
     except KeyboardInterrupt:
         pass
     robot.save_log("data.json")
