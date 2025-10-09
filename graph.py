@@ -48,7 +48,7 @@ for node in range(len(split_by_nodes)):
     plt.scatter(x, split_by_nodes[node]["drive_err"][:], c="red", s=size)
     # plt.scatter(x, split_by_nodes[node]["drive_out"][:], c="orange", s=size)
     plt.scatter(x, split_by_nodes[node]["turn_err"], c="green", s=size)
-    # plt.scatter(x, split_by_nodes[node]["turn_out"], c="blue", s=size)
+    plt.scatter(x, split_by_nodes[node]["turn_out"], c="blue", s=size)
     plt.savefig(f"graphs/node_{node + 1}.png")
     plt.clf()
 # x = [i for i in range(len(data["drive_err"]))]
