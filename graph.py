@@ -41,13 +41,21 @@ for i in range(len(data["current_pos"])):
 
 size = 8
 
-for node in range(len(split_by_nodes)):
-    x = [i for i in range(len(split_by_nodes[node]["drive_err"]))]
-    # plt.scatter(x, data["current_heading"], c="red")
-    # plt.scatter(x, data["desired_heading"], c="orange")
-    plt.scatter(x, split_by_nodes[node]["drive_err"][:], c="red", s=size)
-    plt.scatter(x, split_by_nodes[node]["drive_out"][:], c="orange", s=size)
-    plt.scatter(x, split_by_nodes[node]["turn_err"], c="green", s=size)
-    plt.scatter(x, split_by_nodes[node]["turn_out"], c="blue", s=size)
-    plt.savefig(f"graphs/node_{node + 1}.png")
-    plt.clf()
+# for node in range(len(split_by_nodes)):
+#     x = [i for i in range(len(split_by_nodes[node]["drive_err"]))]
+#     # plt.scatter(x, data["current_heading"], c="red")
+#     # plt.scatter(x, data["desired_heading"], c="orange")
+#     plt.scatter(x, split_by_nodes[node]["drive_err"][:], c="red", s=size)
+#     plt.scatter(x, split_by_nodes[node]["drive_out"][:], c="orange", s=size)
+#     plt.scatter(x, split_by_nodes[node]["turn_err"], c="green", s=size)
+#     plt.scatter(x, split_by_nodes[node]["turn_out"], c="blue", s=size)
+#     plt.savefig(f"graphs/node_{node + 1}.png")
+#     plt.clf()
+x = [i for i in range(len(data["drive_err"]))]
+
+plt.scatter(x, data["drive_err"][:], c="red", s=size)
+plt.scatter(x, data["drive_out"][:], c="orange", s=size)
+plt.scatter(x, data["turn_err"], c="green", s=size)
+plt.scatter(x, data["turn_out"], c="blue", s=size)
+
+plt.savefig("graph.png")

@@ -248,7 +248,7 @@ class SimRobot:
 def main():
     robot = SimRobot(get_node_loc(path_points[0]))
     try:
-        robot.drive_path(path_points[1:])
+        robot.drive_path(path_points[1:3])
     except KeyboardInterrupt:
         pass
     robot.save_log("data.json")
