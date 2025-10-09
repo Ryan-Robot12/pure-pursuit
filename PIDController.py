@@ -4,17 +4,25 @@ import time
 __all__ = ["PIDController"]
 
 
+# def input_modulus(input_, minimumInput, maximumInput):
+#     modulus = maximumInput - minimumInput
+#
+#     num_max = math.floor((input_ - minimumInput) / modulus)
+#     input_ -= num_max * modulus
+#
+#     num_min = math.floor((input_ - maximumInput) / modulus)
+#     input_ -= num_min * modulus
+#
+#     # return input_ % modulus
+#     return input_
+
 def input_modulus(input_, minimumInput, maximumInput):
-    modulus = maximumInput - minimumInput
-
-    num_max = (input_ - minimumInput) // modulus
-    input_ -= num_max * modulus
-
-    num_min = (input_ - maximumInput) // modulus
-    input_ -= num_min * modulus
-
-    return input_ % modulus
-    # return input_
+    diff = maximumInput - minimumInput
+    while input_ > maximumInput:
+        input_ -= diff
+    while input_ < minimumInput:
+        input_ += diff
+    return input_
 
 
 class PIDController:

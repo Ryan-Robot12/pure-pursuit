@@ -45,15 +45,12 @@ def get_node_loc(node_id: int):
 
 
 def input_modulus(input_, minimumInput, maximumInput):
-    modulus = maximumInput - minimumInput
-
-    num_max = (input_ - minimumInput) // modulus
-    input_ -= num_max * modulus
-
-    num_min = (input_ - maximumInput) // modulus
-    input_ -= num_min * modulus
-
-    return input_ % maximumInput
+    diff = maximumInput - minimumInput
+    while input_ > maximumInput:
+        input_ -= diff
+    while input_ < minimumInput:
+        input_ += diff
+    return input_
 
 
 def calculate_heading(start_loc, target):
