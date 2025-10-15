@@ -1,16 +1,18 @@
 # TODO: this is a functional package for intellisense:
+import json
+import math
+import threading
+import time
+
+import numpy as np
 import rclpy
 from gps_msgs.msg import GPSFix
 from rclpy.node import Node
-from std_msgs.msg import Int64, Float64, Int64MultiArray
-import numpy as np
-import threading
-import json
-import math
-import time
+from std_msgs.msg import Float64, Int64MultiArray
 
 from PIDController import PIDController
 
+TIMEOUT_ERR_THRESHOLD = 5  # 5 seconds
 
 def calculate_heading(start_loc, target):
     """
@@ -89,8 +91,8 @@ class PursuitNode(Node):
         # TODO: path planning node here
         self.create_subscription(Int64MultiArray, "/path_planning/path", self.path_update, 10)
 
-        self.create_publisher(Float64, "/pure_pursuit/throttle", 10)
-        self.create_publisher(Float64, "/pure_pursuit/steer", 10)
+        self.throttle_publisher = self.create_publisher(Float64, "/pure_pursuit/throttle", 10)
+        self.steer_publisher = self.create_publisher(Float64, "/pure_pursuit/steer", 10)
 
         # TODO ??? does this do
         thread = threading.Thread(target=rclpy.spin, args=(self, ), daemon=True)
@@ -98,22 +100,22 @@ class PursuitNode(Node):
 
     def gps_update(self, msg):
         if not np.isnan(msg.latitude) and not np.isnan(msg.longitude):
-            self.rtk_data = {
-                "latitude": msg.latitude,
-                "longitude": msg.longitude,
-                "altitude": msg.altitude,
-                "track": msg.track,
-                "rtk_sats": msg.status.satellites_used
-            }
+            # self.rtk_data = {
+            #     "latitude": msg.latitude,
+            #     "longitude": msg.longitude,
+            #     "altitude": msg.altitude,
+            #     "track": msg.track,
+            #     "rtk_sats": msg.status.satellites_used
+            # }
             self.current_pos = [msg.latitude, msg.longitude]
+            self.current_heading = msg.track
             self.last_updates["rtk"] = time.time()
             self.get_logger().debug("Received RTK GPS data")
         else:
             self.get_logger().warn("Received invalid RTK GPS data (NaN values)")
 
-    def heading_update(self, msg):
-        # TODO: write this lmao
-        pass
+    def _is_fresh(self, topic):
+        return (time.time() - self.last_updates[topic]) < TIMEOUT_ERR_THRESHOLD
 
     def path_update(self, msg):
         points = msg.data
@@ -136,6 +138,10 @@ class PursuitNode(Node):
         return matches[0]
 
     def drive_to_node(self, node_id: int):
+        # TODO: dont forget
+        if not self._is_fresh("rtk"):
+            self.get_logger().error("RTK data stale.")
+            return
         # where we going
         target_loc = self.get_node_loc(node_id)
         # distance there
@@ -151,6 +157,9 @@ class PursuitNode(Node):
         # TODO: clamp to max robot speed lmao
         drive_output = self.drive_controller.calculate(dist, 0)
         turn_output = self.turn_controller.calculate(self.current_heading, desired_heading)
+
+        self.throttle_publisher.publish(drive_output)
+        self.steer_publisher.publish(turn_output)
 
     def drive_path(self, points: list, acceptable_err: float=0.25):
         """
