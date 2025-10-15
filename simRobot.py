@@ -142,7 +142,6 @@ class SimRobot:
             desired_heading += 2 * math.pi
 
         # heading_err = abs(desired_heading - self.current_heading)
-        # TODO: something about the turn stuff here is wrong
         heading_err = input_modulus(desired_heading - self.current_heading, -self._max_turn_err, self._max_turn_err)
         # PID calcs
         drive_output = self.drive_controller.calculate(dist, 0) if heading_err < ACCEPTABLE_TURN_ERR_TO_DRIVE else 0

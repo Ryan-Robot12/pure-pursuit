@@ -14,6 +14,23 @@ from PIDController import PIDController
 
 TIMEOUT_ERR_THRESHOLD = 5  # 5 seconds
 
+MAX_DRIVE_SPEED_M_S = 0.5
+MAX_TURN_SPEED_RADS_SEC = math.pi / 4
+ACCEPTABLE_TURN_ERR_TO_DRIVE = math.pi / 4
+
+
+def deadzone(val, deadzone_=1e-5):
+    return 0 if abs(val) <= deadzone_ else val
+
+
+def clamp(val, min_, max_):
+    return min(max(val, min_), max_)
+
+
+def rotate(l, n):
+    return l[n:] + l[:n]
+
+
 def calculate_heading(start_loc, target):
     """
     Calculates the heading to a given position
@@ -31,6 +48,15 @@ def calculate_heading(start_loc, target):
     beta = math.atan2(x_c, y_c)
     # beta_deg = beta * 360 / 2 / math.pi
     return beta
+
+
+def input_modulus(input_, minimumInput, maximumInput):
+    diff = maximumInput - minimumInput
+    while input_ > maximumInput:
+        input_ -= diff
+    while input_ < minimumInput:
+        input_ += diff
+    return input_
 
 
 def haversine_dist(lat1, lon1, lat2, lon2):
@@ -83,7 +109,9 @@ class PursuitNode(Node):
             self.all_points = json.load(file)
 
         self.heading = 0
+        self._max_turn_err = math.pi  # 2pi / 2
         self.current_pos = self.all_points["origin"]
+        self.current_heading = 0
 
         self.create_subscription(GPSFix, "/gpsfix", self.gps_update, 10)
         # TODO: heading
@@ -108,7 +136,7 @@ class PursuitNode(Node):
             #     "rtk_sats": msg.status.satellites_used
             # }
             self.current_pos = [msg.latitude, msg.longitude]
-            self.current_heading = msg.track
+            self.current_heading = math.radians(msg.track)
             self.last_updates["rtk"] = time.time()
             self.get_logger().debug("Received RTK GPS data")
         else:
@@ -138,7 +166,7 @@ class PursuitNode(Node):
         return matches[0]
 
     def drive_to_node(self, node_id: int):
-        # TODO: dont forget
+        # TODO: dont forget about this
         if not self._is_fresh("rtk"):
             self.get_logger().error("RTK data stale.")
             return
@@ -150,14 +178,27 @@ class PursuitNode(Node):
         # desired heading
         desired_heading = calculate_heading(self.current_pos, target_loc)
         # change to east being 0, CCW positive for math, and clamp down to -2pi, 2pi
-        desired_heading = (math.pi / 2 - desired_heading) % (2 * math.pi)
+        # TODO: is the % needed? was added for sim
+        # TODO: is this entire line needed?
+        # desired_heading = (math.pi / 2 - desired_heading) % (2 * math.pi)
+        # clamp to 0, 2pi
+        if desired_heading < 0:
+            desired_heading += 2 * math.pi
 
+        # heading ERR, (continuous input stuff)
+        heading_err = input_modulus(desired_heading - self.current_heading, -self._max_turn_err, self._max_turn_err)
         # PID calcs
-        # TODO: clamp to forward, heading err < 90 deg to drive forwards/backwards
-        # TODO: clamp to max robot speed lmao
-        drive_output = self.drive_controller.calculate(dist, 0)
+        # TODO: this will slow down for each node
+        # TODO: make constant speed, slow down to turn..?
+        # TODO: units for output? throttle? m/s? rads/s?
+        drive_output = self.drive_controller.calculate(dist, 0) if abs(heading_err) < ACCEPTABLE_TURN_ERR_TO_DRIVE else 0
         turn_output = self.turn_controller.calculate(self.current_heading, desired_heading)
 
+        # clamp to max robot speed
+        drive_output = clamp(drive_output, 0, MAX_DRIVE_SPEED_M_S)
+        turn_output = clamp(turn_output, -1 * MAX_TURN_SPEED_RADS_SEC, MAX_TURN_SPEED_RADS_SEC)
+
+        # publish
         self.throttle_publisher.publish(drive_output)
         self.steer_publisher.publish(turn_output)
 
