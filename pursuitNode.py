@@ -8,9 +8,12 @@ import numpy as np
 import rclpy
 from gps_msgs.msg import GPSFix
 from rclpy.node import Node
-from std_msgs.msg import Float64, Int64MultiArray
+from std_msgs.msg import Float64
 
 from PIDController import PIDController
+
+# earth radius
+r = 6371
 
 TIMEOUT_ERR_THRESHOLD = 5  # 5 seconds
 
@@ -51,6 +54,7 @@ def calculate_heading(start_loc, target):
 
 
 def input_modulus(input_, minimumInput, maximumInput):
+    # bind input_ to the range of (min, max)
     diff = maximumInput - minimumInput
     while input_ > maximumInput:
         input_ -= diff
@@ -75,7 +79,6 @@ def haversine_dist(lat1, lon1, lat2, lon2):
     if a < 0:
         a = 0
     c = 2 * math.asin(math.sqrt(a))
-    r = 6371
     return c * r * 1000
 
 
@@ -98,9 +101,11 @@ class PursuitNode(Node):
         self.turn_d = 0
         self.turn_controller = PIDController(self.turn_p, self.turn_i, self.turn_d)
 
+        # tracking if data is stale
         self.last_updates = {"rtk": 0.0, "path": 0.0, "heading": 0.0}
         self.rtk_data = None
 
+        # path stuff
         self.path = []
         self._new_path = False
 
@@ -108,17 +113,18 @@ class PursuitNode(Node):
         with open("oval_points.json") as file:
             self.all_points = json.load(file)
 
-        self.heading = 0
+        # heading and lat/long stuff
         self._max_turn_err = math.pi  # 2pi / 2
         self.current_pos = self.all_points["origin"]
         self.current_heading = 0
 
+        # GPS subscription
         self.create_subscription(GPSFix, "/gpsfix", self.gps_update, 10)
-        # TODO: heading
 
-        # TODO: path planning node here
-        self.create_subscription(Int64MultiArray, "/path_planning/path", self.path_update, 10)
+        # TODO: change path to whatever the actual path is
+        self.create_subscription(Float64MultiArray, "/path_planning/path", self.path_update, 10)
 
+        # publishers for drive output
         self.throttle_publisher = self.create_publisher(Float64, "/pure_pursuit/throttle", 10)
         self.steer_publisher = self.create_publisher(Float64, "/pure_pursuit/steer", 10)
 
@@ -126,32 +132,53 @@ class PursuitNode(Node):
         thread = threading.Thread(target=rclpy.spin, args=(self, ), daemon=True)
         thread.start()
 
+        # TODO: enable when debugging
+        # self.drive_path(self.path)
+
     def gps_update(self, msg):
+        """
+        Handles the RTK GPS update message
+        :param msg: GPS data
+        """
         if not np.isnan(msg.latitude) and not np.isnan(msg.longitude):
-            # self.rtk_data = {
-            #     "latitude": msg.latitude,
-            #     "longitude": msg.longitude,
-            #     "altitude": msg.altitude,
-            #     "track": msg.track,
-            #     "rtk_sats": msg.status.satellites_used
-            # }
-            self.current_pos = [msg.latitude, msg.longitude]
-            self.current_heading = math.radians(msg.track)
+            self.rtk_data = {
+                "latitude": msg.latitude,
+                "longitude": msg.longitude,
+                "altitude": msg.altitude,
+                "track": msg.track,
+                "rtk_sats": msg.status.satellites_used
+            }
+            # self.current_pos = [msg.latitude, msg.longitude]
+            # self.current_heading = math.radians(msg.track)
             self.last_updates["rtk"] = time.time()
             self.get_logger().debug("Received RTK GPS data")
         else:
             self.get_logger().warn("Received invalid RTK GPS data (NaN values)")
 
-    def _is_fresh(self, topic):
-        return (time.time() - self.last_updates[topic]) < TIMEOUT_ERR_THRESHOLD
+    def _is_fresh(self, topic, timeout=TIMEOUT_ERR_THRESHOLD):
+        """
+        Checks if a given topic has fresh data
+        :param topic: the topic to check
+        :return: True if dt <= timeout
+        """
+        return (time.time() - self.last_updates[topic]) <= timeout
 
     def path_update(self, msg):
+        """
+        Updates the path we are trying to follow
+        :param msg: the path nodes
+        """
         points = msg.data
         self._new_path = True
         self.last_updates["path"] = time.time()
         self.path = points
 
     def get_node_loc(self, node_id: int):
+        """
+        Gets the lat/long of a given node
+        :param node_id: ID of the node
+        :return: [lat, long] of the node or ValueError if node not found
+        """
         matches = []
         if node_id < 0:
             for node in self.all_points["nodes"]:
@@ -166,6 +193,10 @@ class PursuitNode(Node):
         return matches[0]
 
     def drive_to_node(self, node_id: int):
+        """
+        Drives *in a straight line* to a given node, meant to be called in a while loop (e.g. while distance > threshold)
+        :param node_id: the ID of the target node
+        """
         # TODO: dont forget about this
         if not self._is_fresh("rtk"):
             self.get_logger().error("RTK data stale.")
@@ -177,20 +208,17 @@ class PursuitNode(Node):
 
         # desired heading
         desired_heading = calculate_heading(self.current_pos, target_loc)
-        # change to east being 0, CCW positive for math, and clamp down to -2pi, 2pi
-        # TODO: is the % needed? was added for sim
-        # TODO: is this entire line needed?
-        # desired_heading = (math.pi / 2 - desired_heading) % (2 * math.pi)
         # clamp to 0, 2pi
+        # TODO: necessary?
         if desired_heading < 0:
             desired_heading += 2 * math.pi
 
-        # heading ERR, (continuous input stuff)
+        # heading error, (continuous input stuff)
         heading_err = input_modulus(desired_heading - self.current_heading, -self._max_turn_err, self._max_turn_err)
         # PID calcs
         # TODO: this will slow down for each node
         # TODO: make constant speed, slow down to turn..?
-        # TODO: units for output? throttle? m/s? rads/s?
+        # TODO: units for output = PercentOutput [-100, 100]
         drive_output = self.drive_controller.calculate(dist, 0) if abs(heading_err) < ACCEPTABLE_TURN_ERR_TO_DRIVE else 0
         turn_output = self.turn_controller.calculate(self.current_heading, desired_heading)
 
@@ -208,16 +236,18 @@ class PursuitNode(Node):
         :param points: list of node IDs
         :param acceptable_err: acceptabale error in meters
         """
+        # debug
         num_pts = len(points)
         for i, point in enumerate(points):
-            print(f"Heading towards node {point}, point {i + 1}/{num_pts}")
-            print(f"Target: {self.get_node_loc(point)}, distance: {self._distance_to_node(point)}")
+            # debug
+            self.get_logger().debug(f"Heading towards node {point}, point {i + 1}/{num_pts}")
+            self.get_logger().debug(f"Target: {self.get_node_loc(point)}, distance: {self._distance_to_node(point)}")
             steps = 0
             while self._distance_to_node(point) > acceptable_err:
                 self.drive_to_node(point)
                 steps += 1
                 # print(self._distance_to_node(point))
-            print(f"Made it to node {point} in {steps} steps")
+            self.get_logger().debug(f"Made it to node {point} in {steps} steps")
 
     def _distance_to_node(self, node_id):
         """
@@ -228,8 +258,9 @@ class PursuitNode(Node):
         target_loc = self.get_node_loc(node_id)
         return haversine_dist(self.current_pos[0], self.current_pos[1], target_loc[0], target_loc[1])
 
-with open("oval_points.json") as file:
-    all_points = json.load(file)
+# with open("oval_points.json") as file:
+#     all_points = json.load(file)
+#
+# with open("points.json") as file:
+#     path_points = json.load(file)
 
-with open("points.json") as file:
-    path_points = json.load(file)
